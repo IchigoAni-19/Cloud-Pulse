@@ -65,7 +65,7 @@ const history = computed<HealthDataPointDto[]>(() => assetsStore.assetHistory?.h
 const uptimePct = computed(() => assetsStore.assetHistory?.uptimePercentage ?? 0)
 const avgLatency = computed(() => assetsStore.assetHistory?.averageLatencyMs ?? 0)
 
-function statusBadge(status: AssetStatus) {
+function statusBadge(status?: AssetStatus) {
   switch (status) {
     case 'Healthy':
       return { variant: 'default' as const, cls: 'bg-green-500 hover:bg-green-500', label: 'Healthy', dot: 'bg-green-500' }
@@ -151,7 +151,7 @@ const yAxisTicks = computed(() => {
   return result
 })
 
-function colorForStatus(status: AssetStatus) {
+function colorForStatus(status?: AssetStatus) {
   switch (status) {
     case 'Healthy': return '#22c55e'
     case 'Degraded': return '#eab308'

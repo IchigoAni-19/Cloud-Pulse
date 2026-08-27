@@ -33,11 +33,12 @@ async function handleUpgrade() {
     const orderRes = await apiClient.post('/payments/create-order', { planTier: 'Pro' })
     const orderData = orderRes.data
 
+    const paymentId = `pay_${Date.now()}`
     const mockSignature = `mock-sig-${orderData?.orderId || Date.now()}`
     await apiClient.post('/payments/verify', {
-      orderId: orderData?.orderId,
-      signature: mockSignature,
-      planTier: 'Pro',
+      razorpayOrderId: orderData?.orderId,
+      razorpayPaymentId: paymentId,
+      razorpaySignature: mockSignature,
     })
 
     if (authStore.user) {

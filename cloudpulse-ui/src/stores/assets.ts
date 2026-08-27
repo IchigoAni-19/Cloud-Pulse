@@ -24,24 +24,27 @@ export interface DashboardSummaryDto {
   totalAssets: number
   overallUptimePercentage: number
   healthyCount: number
-  criticalCount: number
   degradedCount: number
-  unknownCount: number
+  downCount: number
+  criticalCount?: number
+  averageLatencyMs: number
 }
 
 export interface HealthDataPointDto {
   timestamp: string
   latencyMs: number
   statusCode: number
+  isSuccessful: boolean
   success: boolean
   status: AssetStatus
 }
 
 export interface AssetMetricsHistoryDto {
   assetId: string
-  assetName: string
+  assetName?: string
   uptimePercentage: number
-  averageLatencyMs: number
+  avgLatencyMs: number
+  averageLatencyMs?: number
   history: HealthDataPointDto[]
 }
 
@@ -52,9 +55,10 @@ export const useAssetsStore = defineStore('assets', () => {
     totalAssets: 0,
     overallUptimePercentage: 0,
     healthyCount: 0,
-    criticalCount: 0,
     degradedCount: 0,
-    unknownCount: 0,
+    downCount: 0,
+    criticalCount: 0,
+    averageLatencyMs: 0,
   })
   const assetHistory = ref<AssetMetricsHistoryDto | null>(null)
   const isLoading = ref<boolean>(false)
@@ -65,8 +69,8 @@ export const useAssetsStore = defineStore('assets', () => {
     error.value = null
     try {
       const params: Record<string, string> = {}
-      if (env) params.environment = env
-      if (type) params.resourceType = type
+      if (env) params.env = env
+      if (type) params.type = type
       const response = await apiClient.get('/assets', { params })
       assets.value = response.data || []
       return assets.value
@@ -138,7 +142,11 @@ export const useAssetsStore = defineStore('assets', () => {
     error.value = null
     try {
       const response = await apiClient.get('/metrics/dashboard')
-      summaryMetrics.value = response.data || summaryMetrics.value
+      const data = response.data || {}
+      summaryMetrics.value = {
+        ...data,
+        criticalCount: data.downCount ?? 0,
+      }
       return summaryMetrics.value
     } catch (e: any) {
       error.value = e.message || 'Failed to fetch dashboard metrics'
@@ -153,7 +161,18 @@ export const useAssetsStore = defineStore('assets', () => {
     error.value = null
     try {
       const response = await apiClient.get(`/metrics/${id}/history`)
-      assetHistory.value = response.data
+      const data = response.data
+      if (data && Array.isArray(data.history)) {
+        data.history = data.history.map((p: any) => ({
+          ...p,
+          success: p.isSuccessful ?? true,
+          status: p.isSuccessful
+            ? (p.latencyMs < 800 ? 'Healthy' : 'Degraded')
+            : (p.statusCode >= 500 || p.statusCode === 0 ? 'Down' : 'Degraded'),
+        }))
+        data.averageLatencyMs = data.avgLatencyMs ?? 0
+      }
+      assetHistory.value = data
       return assetHistory.value
     } catch (e: any) {
       error.value = e.message || 'Failed to fetch asset history'

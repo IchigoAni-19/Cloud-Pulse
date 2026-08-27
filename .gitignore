@@ -1,0 +1,79 @@
+# ==========================================
+# CloudPulse Global .gitignore
+# ==========================================
+
+# ------------------------------------------
+# .NET / C# / ASP.NET Core
+# ------------------------------------------
+bin/
+obj/
+[Bb]in/
+[Oo]bj/
+*.user
+*.suo
+*.userprefs
+*.usertasks
+*.sln.docstates
+*.dll
+*.exe
+*.pdb
+*.cache
+*.deps.json
+*.runtimeconfig.json
+.vs/
+*.slnx
+
+# Entity Framework Core migrations / generated
+*.db
+*.sqlite
+*.sqlite3
+*.db-shm
+*.db-wal
+
+# ------------------------------------------
+# Node / Vite / Vue 3 Frontend
+# ------------------------------------------
+**/node_modules/
+**/dist/
+**/dist-ssr/
+*.local
+.npm
+.yarn/
+.pnpm-store/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# ------------------------------------------
+# Environment & Secrets
+# ------------------------------------------
+.env
+.env.*.local
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# ------------------------------------------
+# IDEs & Operating Systems
+# ------------------------------------------
+.DS_Store
+Thumbs.db
+Desktop.ini
+.idea/
+*.swp
+*.swo
+*~
+
+# VS Code (preserve useful workspace configs)
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json

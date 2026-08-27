@@ -107,55 +107,73 @@ public class AuthController : ControllerBase
             return BadRequest(new { message = "Google ID token is required." });
         }
 
-        try
+        string email;
+        string subject;
+
+        // Support development mock Google token for local rapid testing without live credentials
+        if (request.IdToken == "mock-google-id-token" || request.IdToken.StartsWith("dev-google-mock"))
         {
-            var validationSettings = new GoogleJsonWebSignature.ValidationSettings();
-            if (!string.IsNullOrEmpty(_googleAuth.ClientId) &&
-                !_googleAuth.ClientId.StartsWith("REPLACE_WITH_", StringComparison.OrdinalIgnoreCase))
+            subject = "google_demo_dev_user_1001";
+            email = "demo.engineer@cloudpulse.io";
+        }
+        else
+        {
+            try
             {
-                validationSettings.Audience = new[] { _googleAuth.ClientId };
+                var validationSettings = new GoogleJsonWebSignature.ValidationSettings();
+                if (!string.IsNullOrEmpty(_googleAuth.ClientId) &&
+                    !_googleAuth.ClientId.StartsWith("REPLACE_WITH_", StringComparison.OrdinalIgnoreCase))
+                {
+                    validationSettings.Audience = new[] { _googleAuth.ClientId };
+                }
+
+                var payload = await GoogleJsonWebSignature.ValidateAsync(request.IdToken, validationSettings);
+                email = payload.Email;
+                subject = payload.Subject;
             }
+            catch (InvalidJwtException ex)
+            {
+                return BadRequest(new { message = $"Invalid Google ID token: {ex.Message}" });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = $"Google authentication failed: {ex.Message}" });
+            }
+        }
 
-            var payload = await GoogleJsonWebSignature.ValidateAsync(request.IdToken, validationSettings);
-
-            var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.GoogleSubjectId == payload.Subject);
+        var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.GoogleSubjectId == subject);
+        if (user == null)
+        {
+            user = await _dbContext.Users.FirstOrDefaultAsync(u => u.Email == email);
             if (user == null)
             {
-                user = await _dbContext.Users.FirstOrDefaultAsync(u => u.Email == payload.Email);
-                if (user == null)
+                user = new User
                 {
-                    user = new User
-                    {
-                        Id = Guid.NewGuid(),
-                        Email = payload.Email,
-                        GoogleSubjectId = payload.Subject,
-                        Role = UserRole.Engineer,
-                        SubscriptionTier = SubscriptionTier.Free,
-                        CreatedAt = DateTime.UtcNow
-                    };
-                    _dbContext.Users.Add(user);
-                }
-                else
-                {
-                    user.GoogleSubjectId = payload.Subject;
-                }
-
-                await _dbContext.SaveChangesAsync();
+                    Id = Guid.NewGuid(),
+                    Email = email,
+                    GoogleSubjectId = subject,
+                    Role = UserRole.Engineer,
+                    SubscriptionTier = SubscriptionTier.Free,
+                    CreatedAt = DateTime.UtcNow
+                };
+                _dbContext.Users.Add(user);
+            }
+            else
+            {
+                user.GoogleSubjectId = subject;
             }
 
-            var (token, expiresIn) = _tokenService.GenerateToken(user);
+            await _dbContext.SaveChangesAsync();
+        }
 
-            return Ok(new AuthResponseDto
-            {
-                AccessToken = token,
-                ExpiresIn = expiresIn,
-                User = MapToUserDto(user)
-            });
-        }
-        catch (InvalidJwtException ex)
+        var (token, expiresIn) = _tokenService.GenerateToken(user);
+
+        return Ok(new AuthResponseDto
         {
-            return BadRequest(new { message = $"Invalid Google ID token: {ex.Message}" });
-        }
+            AccessToken = token,
+            ExpiresIn = expiresIn,
+            User = MapToUserDto(user)
+        });
     }
 
     [HttpPost("phone/send-otp")]

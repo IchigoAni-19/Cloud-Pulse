@@ -83,7 +83,7 @@ export const useAuthStore = defineStore('auth', () => {
   async function sendPhoneOtp(phone: string) {
     isLoading.value = true
     try {
-      const response = await apiClient.post('/auth/phone/send-otp', { phone })
+      const response = await apiClient.post('/auth/phone/send-otp', { phoneNumber: phone })
       return response.data
     } finally {
       isLoading.value = false
@@ -93,10 +93,10 @@ export const useAuthStore = defineStore('auth', () => {
   async function verifyPhoneOtp({ phone, otpCode }: { phone: string; otpCode: string }) {
     isLoading.value = true
     try {
-      const response = await apiClient.post('/auth/phone/verify-otp', { phone, otpCode })
+      const response = await apiClient.post('/auth/phone/verify-otp', { phoneNumber: phone, otpCode })
       const data = response.data
       token.value = data.accessToken || data.token || ''
-      user.value = data.user || { id: data.userId, email: '', phoneNumber: phone, role: 'User', subscriptionTier: 'Free' }
+      user.value = data.user || { id: data.userId, email: '', phoneNumber: phone, role: 'Engineer', subscriptionTier: 'Free' }
       isAuthenticated.value = true
       localStorage.setItem('access_token', token.value)
       localStorage.setItem('user', JSON.stringify(user.value))

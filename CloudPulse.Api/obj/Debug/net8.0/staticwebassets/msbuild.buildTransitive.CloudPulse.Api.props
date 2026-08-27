@@ -1,3 +1,0 @@
-﻿<Project>
-  <Import Project="../buildMultiTargeting/CloudPulse.Api.props" />
-</Project>
