@@ -141,11 +141,12 @@ using (var scope = app.Services.CreateScope())
     try
     {
         await db.Database.EnsureCreatedAsync();
+        await DbSeeder.SeedAsync(app.Services);
     }
     catch (Exception ex)
     {
         var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
-        logger.LogWarning(ex, "Could not auto-create database. Ensure PostgreSQL is running at DefaultConnection or run migrations manually.");
+        logger.LogWarning(ex, "Could not auto-create or seed database. Ensure PostgreSQL is running at DefaultConnection or run migrations manually.");
     }
 }
 

@@ -3,7 +3,7 @@
 # ==========================================
 
 # ------------------------------------------
-# .NET / C# / ASP.NET Core
+# .NET / C# / ASP.NET Core Build Outputs
 # ------------------------------------------
 bin/
 obj/
@@ -22,8 +22,9 @@ obj/
 *.runtimeconfig.json
 .vs/
 *.slnx
+*.DotSettings.user
 
-# Entity Framework Core migrations / generated
+# Entity Framework Core databases & SQLite
 *.db
 *.sqlite
 *.sqlite3
@@ -40,8 +41,10 @@ obj/
 .npm
 .yarn/
 .pnpm-store/
+.vite/
+.output/
 
-# Logs
+# Logs & Diagnostics
 logs/
 *.log
 npm-debug.log*
@@ -54,26 +57,41 @@ lerna-debug.log*
 # Environment & Secrets
 # ------------------------------------------
 .env
-.env.*.local
+.env.*
 .env.local
 .env.development.local
 .env.test.local
 .env.production.local
+*.env
+*.secret.json
+secrets.json
+appsettings.Production.json
+appsettings.*.local.json
+*.pem
+*.key
+*.cert
+*.pfx
+*.p12
 
 # ------------------------------------------
-# IDEs & Operating Systems
+# IDEs, Editors & Workspace Configs
 # ------------------------------------------
-.DS_Store
-Thumbs.db
-Desktop.ini
+.vscode/
+.vscode/*
 .idea/
+.idea/*
 *.swp
 *.swo
 *~
+*.sublime-project
+*.sublime-workspace
 
-# VS Code (preserve useful workspace configs)
-.vscode/*
-!.vscode/settings.json
-!.vscode/tasks.json
-!.vscode/launch.json
-!.vscode/extensions.json
+# OS Generated Files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini

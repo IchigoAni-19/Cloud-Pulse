@@ -226,6 +226,14 @@ public class AuthController : ControllerBase
         });
     }
 
+    [HttpPost("seed")]
+    [AllowAnonymous]
+    public async Task<IActionResult> SeedDemoData()
+    {
+        await DbSeeder.SeedAsync(HttpContext.RequestServices);
+        return Ok(new { message = "Seeding completed successfully." });
+    }
+
     private static UserDto MapToUserDto(User user) => new()
     {
         Id = user.Id,

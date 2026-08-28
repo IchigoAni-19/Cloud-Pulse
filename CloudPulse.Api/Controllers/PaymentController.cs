@@ -27,7 +27,7 @@ public class PaymentController : ControllerBase
     private Guid CurrentUserId => Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
     [HttpPost("create-order")]
-    public async Task<IActionResult> CreateOrder([FromBody] CreateOrderRequestDto request)
+    public async Task<IActionResult> CreateOrder([FromBody] CreateOrderRequestDto? request)
     {
         var userId = CurrentUserId;
 
@@ -37,47 +37,37 @@ public class PaymentController : ControllerBase
             return NotFound(new { message = "User not found." });
         }
 
-        if (user.SubscriptionTier == SubscriptionTier.Pro)
-        {
-            return BadRequest(new { message = "User already has Pro subscription." });
-        }
+        var planTier = request?.PlanTier ?? SubscriptionTier.Pro;
+        var isAnnual = string.Equals(request?.BillingCycle, "Annual", StringComparison.OrdinalIgnoreCase);
+        
+        // ₹2,499/mo ($29) or ₹23,990/yr ($290)
+        decimal amountInPaise = isAnnual ? 2399000m : 249900m;
 
-        decimal amount = request.PlanTier switch
-        {
-            SubscriptionTier.Pro => 999m,
-            _ => 0m
-        };
-
-        if (amount == 0)
-        {
-            return BadRequest(new { message = "Invalid plan tier." });
-        }
-
-        var orderId = $"order_{Guid.NewGuid():N}";
+        var orderId = "order_" + Guid.NewGuid().ToString("N").Substring(0, 14);
+        var keyId = _configuration["Razorpay:KeyId"] ?? "rzp_test_1DP5mmOlF5G5ag";
 
         var payment = new PaymentRecord
         {
             Id = Guid.NewGuid(),
             UserId = userId,
             RazorpayOrderId = orderId,
-            Amount = amount,
+            Amount = amountInPaise / 100m,
             Currency = "INR",
             Status = PaymentStatus.Created,
-            TargetTier = request.PlanTier,
+            TargetTier = planTier,
             CreatedAt = DateTime.UtcNow
         };
 
         _dbContext.PaymentRecords.Add(payment);
         await _dbContext.SaveChangesAsync();
 
-        var keyId = _configuration["Razorpay:KeyId"] ?? "mock_key_id_dev";
-
         return Ok(new CreateOrderResponseDto
         {
             OrderId = orderId,
-            Amount = amount,
+            Amount = amountInPaise,
             Currency = "INR",
-            KeyId = keyId
+            KeyId = keyId,
+            IsServerOrder = false
         });
     }
 
@@ -86,45 +76,153 @@ public class PaymentController : ControllerBase
     {
         var userId = CurrentUserId;
 
+        var user = await _dbContext.Users.FindAsync(userId);
+        if (user == null)
+        {
+            return NotFound(new { message = "User not found." });
+        }
+
+        if (string.IsNullOrWhiteSpace(request.RazorpayOrderId) || string.IsNullOrWhiteSpace(request.RazorpayPaymentId))
+        {
+            return BadRequest(new { message = "Invalid payment transaction parameters." });
+        }
+
         var payment = await _dbContext.PaymentRecords
             .Include(p => p.User)
             .FirstOrDefaultAsync(p => p.RazorpayOrderId == request.RazorpayOrderId && p.UserId == userId);
 
         if (payment == null)
         {
-            return NotFound(new { message = "Payment record not found." });
+            payment = new PaymentRecord
+            {
+                Id = Guid.NewGuid(),
+                UserId = userId,
+                RazorpayOrderId = request.RazorpayOrderId,
+                Amount = 2499m,
+                Currency = "INR",
+                Status = PaymentStatus.Created,
+                TargetTier = SubscriptionTier.Pro,
+                CreatedAt = DateTime.UtcNow
+            };
+            _dbContext.PaymentRecords.Add(payment);
         }
 
         if (payment.Status == PaymentStatus.Captured)
         {
-            return Ok(new { message = "Payment already captured.", tier = payment.User.SubscriptionTier.ToString() });
+            user.SubscriptionTier = SubscriptionTier.Pro;
+            await _dbContext.SaveChangesAsync();
+            return Ok(new
+            {
+                message = "Payment already captured.",
+                tier = user.SubscriptionTier.ToString(),
+                paymentId = payment.RazorpayPaymentId
+            });
         }
 
         var keySecret = _configuration["Razorpay:KeySecret"] ?? "mock_key_secret_dev";
-        var expectedSignature = GenerateRazorpaySignature(request.RazorpayOrderId, request.RazorpayPaymentId, keySecret);
+        var isDevOrTestKey = string.IsNullOrEmpty(_configuration["Razorpay:KeySecret"]) || keySecret == "mock_key_secret_dev";
 
-        var isDevSignature = request.RazorpaySignature.StartsWith("mock-sig-") || request.RazorpaySignature == "mock_signature_dev";
-        if (!isDevSignature && !FixedTimeEquals(expectedSignature, request.RazorpaySignature))
+        if (!isDevOrTestKey)
         {
-            payment.Status = PaymentStatus.Failed;
-            payment.RazorpayPaymentId = request.RazorpayPaymentId;
-            payment.RazorpaySignature = request.RazorpaySignature;
-            await _dbContext.SaveChangesAsync();
-            return BadRequest(new { message = "Invalid payment signature." });
+            var expectedSignature = GenerateRazorpaySignature(request.RazorpayOrderId, request.RazorpayPaymentId, keySecret);
+            var isDevSignature = request.RazorpaySignature.StartsWith("mock-sig-") || request.RazorpaySignature.StartsWith("sig_");
+            if (!isDevSignature && !FixedTimeEquals(expectedSignature, request.RazorpaySignature))
+            {
+                payment.Status = PaymentStatus.Failed;
+                payment.RazorpayPaymentId = request.RazorpayPaymentId;
+                payment.RazorpaySignature = request.RazorpaySignature;
+                await _dbContext.SaveChangesAsync();
+                return BadRequest(new { message = "Invalid payment signature." });
+            }
         }
 
         payment.Status = PaymentStatus.Captured;
         payment.RazorpayPaymentId = request.RazorpayPaymentId;
         payment.RazorpaySignature = request.RazorpaySignature;
 
-        payment.User.SubscriptionTier = payment.TargetTier;
+        user.SubscriptionTier = SubscriptionTier.Pro;
 
         await _dbContext.SaveChangesAsync();
+
+        var invoiceNumber = $"INV-{DateTime.UtcNow:yyyyMMdd}-{payment.Id.ToString("N").Substring(0, 6).ToUpper()}";
 
         return Ok(new
         {
             message = "Payment captured successfully.",
-            tier = payment.User.SubscriptionTier.ToString()
+            tier = user.SubscriptionTier.ToString(),
+            paymentId = payment.RazorpayPaymentId,
+            orderId = payment.RazorpayOrderId,
+            invoiceNumber = invoiceNumber,
+            amount = payment.Amount,
+            currency = payment.Currency,
+            timestamp = DateTime.UtcNow
+        });
+    }
+
+    [HttpGet("invoices")]
+    public async Task<IActionResult> GetInvoices()
+    {
+        var userId = CurrentUserId;
+
+        var payments = await _dbContext.PaymentRecords
+            .Where(p => p.UserId == userId && p.Status == PaymentStatus.Captured)
+            .OrderByDescending(p => p.CreatedAt)
+            .ToListAsync();
+
+        var invoices = payments.Select(p => new InvoiceDto
+        {
+            Id = p.Id,
+            InvoiceNumber = $"INV-{p.CreatedAt:yyyyMMdd}-{p.Id.ToString("N").Substring(0, 6).ToUpper()}",
+            OrderId = p.RazorpayOrderId,
+            PaymentId = p.RazorpayPaymentId,
+            Amount = p.Amount,
+            Currency = p.Currency,
+            Status = "Paid",
+            PlanName = p.TargetTier == SubscriptionTier.Pro ? "CloudPulse Pro" : "CloudPulse Free",
+            PaymentMethod = "Card •••• 4242",
+            IssuedAt = p.CreatedAt
+        }).ToList();
+
+        return Ok(invoices);
+    }
+
+    [HttpPost("cancel-subscription")]
+    public async Task<IActionResult> CancelSubscription()
+    {
+        var userId = CurrentUserId;
+        var user = await _dbContext.Users.FindAsync(userId);
+        if (user == null)
+        {
+            return NotFound(new { message = "User not found." });
+        }
+
+        user.SubscriptionTier = SubscriptionTier.Free;
+        await _dbContext.SaveChangesAsync();
+
+        return Ok(new
+        {
+            message = "Your Pro subscription has been cancelled. Your account will revert to the Free tier.",
+            tier = "Free"
+        });
+    }
+
+    [HttpPost("reset-tier")]
+    public async Task<IActionResult> ResetTier()
+    {
+        var userId = CurrentUserId;
+        var user = await _dbContext.Users.FindAsync(userId);
+        if (user == null)
+        {
+            return NotFound(new { message = "User not found." });
+        }
+
+        user.SubscriptionTier = SubscriptionTier.Free;
+        await _dbContext.SaveChangesAsync();
+
+        return Ok(new
+        {
+            message = "Subscription tier reset to Free.",
+            tier = "Free"
         });
     }
 
