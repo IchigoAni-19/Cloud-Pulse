@@ -12,17 +12,28 @@ node_modules/
 dist/
 dist-ssr/
 *.local
+.vite/
+.output/
 
-# Environment files
+# Environment & Secrets
 .env
-.env.*.local
+.env.*
 .env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.env
 
 # Editor & OS files
-.DS_Store
+.vscode/
+.vscode/*
 .idea/
+.idea/*
+.DS_Store
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
+*~
+Thumbs.db
