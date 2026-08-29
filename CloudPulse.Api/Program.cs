@@ -135,6 +135,9 @@ builder.Services.AddSwaggerGen(options =>
 
 var app = builder.Build();
 
+app.UseDefaultFiles();
+app.UseStaticFiles();
+
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -166,4 +169,7 @@ app.UseAuthorization();
 
 app.MapControllers();
 
+app.MapFallbackToFile("index.html");
+
 app.Run();
+
