@@ -7,6 +7,11 @@ export interface ApiErrorShape {
   errors?: Record<string, string[]>
 }
 
+// In production / Docker, fallback to relative path '/api/v1'
+// In local Vite dev mode, VITE_API_BASE_URL can override it
+const defaultBaseUrl = import.meta.env.DEV ? 'http://localhost:5000/api/v1' : '/api/v1'
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || defaultBaseUrl
+
 export function extractErrorMessage(error: unknown): string {
   if (!error) return 'An unknown error occurred'
 
@@ -14,7 +19,7 @@ export function extractErrorMessage(error: unknown): string {
 
   if (!axiosErr.response) {
     if (axiosErr.code === 'ERR_NETWORK' || axiosErr.message?.toLowerCase().includes('network')) {
-      return `Network error: could not reach the CloudPulse API at ${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api/v1'}. Please ensure the backend server is running.`
+      return `Network error: could not reach the CloudPulse API at ${API_BASE_URL}. Please ensure the backend server is running.`
     }
     return axiosErr.message || 'A connection error occurred'
   }
@@ -35,7 +40,7 @@ export function extractErrorMessage(error: unknown): string {
 }
 
 export const apiClient = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api/v1',
+  baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json'
   },
@@ -43,7 +48,7 @@ export const apiClient = axios.create({
 })
 
 apiClient.interceptors.request.use((config) => {
-  const token = localStorage.getItem('access_token')
+  const token = localStorage.getItem('access_token') || localStorage.getItem('token')
   if (token && config.headers) {
     config.headers.Authorization = `Bearer ${token}`
   }
@@ -63,4 +68,3 @@ apiClient.interceptors.response.use(
     return Promise.reject(error)
   }
 )
-
