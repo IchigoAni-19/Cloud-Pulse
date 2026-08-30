@@ -118,43 +118,41 @@ CloudPulse implements a **zero-touch Continuous Integration & Continuous Deploym
 ### 🔄 Zero-Touch Deployment Flow
 
 ```mermaid
-flowchart LR
-    subgraph VCS ["🐙 Version Control"]
-        GIT_PUSH["<b>Git Push</b><br/><code>refs/heads/main</code>"]
+flowchart TD
+    subgraph S1 ["🐙 1. Version Control & Trigger Layer"]
+        GIT_PUSH["<b>Git Push Event</b><br/><code>refs/heads/main</code>"]
+        TRIGGER["⚡ <b>Workflow Trigger</b><br/><i>.github/workflows/deploy.yml</i>"]
+        GIT_PUSH --> TRIGGER
     end
 
-    subgraph GHA ["⚙️ GitHub Actions Runner (ubuntu-latest)"]
-        TRIGGER["<b>Workflow Trigger</b><br/><i>.github/workflows/deploy.yml</i>"]
-        CHECKOUT["📥 <b>actions/checkout@v4</b><br/><i>Fetch Repository</i>"]
-        DOCKER_LOGIN["🔐 <b>docker/login-action@v3</b><br/><i>Auth via Repository Secrets</i>"]
-        DOCKER_BUILD["🐳 <b>docker/build-push-action@v5</b><br/><i>Multi-Stage Full-Stack Build</i>"]
-        AZURE_DEPLOY["🚀 <b>azure/webapps-deploy@v3</b><br/><i>Deploy to Azure Web App</i>"]
+    subgraph S2 ["⚙️ 2. GitHub Actions CI/CD Runner (ubuntu-latest)"]
+        CHECKOUT["📥 <b>actions/checkout@v4</b><br/><i>Fetch Repository & Source Code</i>"]
+        DOCKER_LOGIN["🔐 <b>docker/login-action@v3</b><br/><i>Authenticate to Docker Hub via Secrets (DOCKERHUB_TOKEN)</i>"]
+        DOCKER_BUILD["🐳 <b>docker/build-push-action@v5</b><br/><i>Multi-Stage Full-Stack Build (Node 22 + .NET 8 SDK)</i>"]
+        AZURE_DEPLOY["🚀 <b>azure/webapps-deploy@v3</b><br/><i>Deploy Container to Azure Web App via Publish Profile</i>"]
+
+        CHECKOUT --> DOCKER_LOGIN
+        DOCKER_LOGIN --> DOCKER_BUILD
+        DOCKER_BUILD --> AZURE_DEPLOY
     end
 
-    subgraph REGISTRY ["📦 Container Registry"]
-        DOCKER_HUB[("🐳 <b>Docker Hub</b><br/><code>patelharsh19/cloudpulse:latest</code>")]
+    subgraph S3 ["📦 3. Container Distribution & Cloud Production Rollout"]
+        DOCKER_HUB[("🐳 <b>Docker Hub Registry</b><br/><code>patelharsh19/cloudpulse:latest</code>")]
+        AZURE_APP["☁️ <b>Azure Web App for Containers</b><br/><code>cloudpulse-window</code><br/><i>Zero-Downtime Pull & Rolling Restart</i>"]
     end
 
-    subgraph AZURE_CLOUD ["☁️ Microsoft Azure"]
-        AZURE_APP["🌐 <b>Azure Web App for Containers</b><br/><code>cloudpulse-window</code><br/><i>Zero-Downtime Pull & Restart</i>"]
-    end
-
-    GIT_PUSH --> TRIGGER
     TRIGGER --> CHECKOUT
-    CHECKOUT --> DOCKER_LOGIN
-    DOCKER_LOGIN --> DOCKER_BUILD
-    DOCKER_BUILD -->|Push Image| DOCKER_HUB
-    DOCKER_BUILD --> AZURE_DEPLOY
-    AZURE_DEPLOY -->|Publish Profile Auth| AZURE_APP
-    AZURE_APP -.->|Pull Latest Image| DOCKER_HUB
+    DOCKER_BUILD -->|"Push Multi-Stage Image"| DOCKER_HUB
+    AZURE_DEPLOY -->|"Publish Profile Auth"| AZURE_APP
+    AZURE_APP -.->|"Pull Latest Image"| DOCKER_HUB
 
     classDef vcsStyle fill:#1e293b,stroke:#f97316,stroke-width:2px,color:#f8fafc;
     classDef runnerStyle fill:#0f172a,stroke:#38bdf8,stroke-width:2px,color:#f8fafc;
     classDef regStyle fill:#1e1b4b,stroke:#a855f7,stroke-width:2px,color:#f8fafc;
     classDef azureStyle fill:#064e3b,stroke:#10b981,stroke-width:2px,color:#f8fafc;
 
-    class GIT_PUSH vcsStyle;
-    class TRIGGER,CHECKOUT,DOCKER_LOGIN,DOCKER_BUILD,AZURE_DEPLOY runnerStyle;
+    class GIT_PUSH,TRIGGER vcsStyle;
+    class CHECKOUT,DOCKER_LOGIN,DOCKER_BUILD,AZURE_DEPLOY runnerStyle;
     class DOCKER_HUB regStyle;
     class AZURE_APP azureStyle;
 ```
@@ -201,12 +199,12 @@ Built with **ASP.NET Core 8 Clean Architecture** on the backend and **Vue 3 (Com
 ## 🏛️ System Architecture
 
 ```mermaid
-graph TD
+flowchart TD
     subgraph UI_TIER ["🖥️ Frontend Presentation Tier (Vue 3 + TypeScript)"]
-        VIEWS["📊 Interactive Views<br/><i>Dashboard • AssetDetail • Billing • Auth</i>"]
-        STORES["🗃️ Pinia State Management<br/><i>auth.ts • assets.ts</i>"]
-        HTTP_CLIENT["🔐 Axios HTTP Client<br/><i>JWT Interceptor & Error Handler</i>"]
-        CHECKOUT_SYS["💳 Enterprise Checkout Engine<br/><i>Live Card Detection • UPI • Validation</i>"]
+        VIEWS["📊 <b>Interactive Views & UI</b><br/><i>Dashboard • AssetDetail • Billing • Multi-Auth</i>"]
+        STORES["🗃️ <b>Pinia State Stores</b><br/><i>auth.ts • assets.ts</i>"]
+        CHECKOUT_SYS["💳 <b>Enterprise Checkout Engine</b><br/><i>Live Card Detection • UPI Timer • Tax Calc</i>"]
+        HTTP_CLIENT["🔐 <b>Axios HTTP Client</b><br/><i>JWT Bearer Interceptor & Global Error Handler</i>"]
         
         VIEWS --> STORES
         VIEWS --> CHECKOUT_SYS
@@ -214,11 +212,11 @@ graph TD
         CHECKOUT_SYS --> HTTP_CLIENT
     end
 
-    subgraph API_TIER ["⚡ Backend Service Tier (ASP.NET Core 8 Clean Architecture)"]
-        CONTROLLERS["📡 REST API Controllers<br/><i>AuthController • AssetController • MetricsController • PaymentController</i>"]
-        SVC_LAYER["⚙️ Core Services<br/><i>TokenService • OtpService • DbSeeder</i>"]
-        BG_SVC["🛰️ HealthMonitoringWorker<br/><i>IHostedService (30s Concurrent Pings)</i>"]
-        ORM["🗄️ Entity Framework Core 8<br/><i>AppDbContext & LINQ Mapping</i>"]
+    subgraph API_TIER ["⚡ Backend Service Tier (ASP.NET Core 8 Web API)"]
+        CONTROLLERS["📡 <b>REST API Controllers</b><br/><i>AuthController • AssetController • MetricsController • PaymentController</i>"]
+        SVC_LAYER["⚙️ <b>Core Application Services</b><br/><i>TokenService (JWT) • OtpService • DbSeeder</i>"]
+        BG_SVC["🛰️ <b>HealthMonitoringWorker</b><br/><i>Autonomous BackgroundService (30s Concurrent Pings)</i>"]
+        ORM["🗄️ <b>Entity Framework Core 8</b><br/><i>AppDbContext • LINQ Mapping • Schema Auto-Migration</i>"]
         
         CONTROLLERS --> SVC_LAYER
         CONTROLLERS --> ORM
@@ -227,23 +225,23 @@ graph TD
     end
 
     subgraph DATA_TIER ["🐘 Data Persistence Layer"]
-        POSTGRES_DB[("🗄️ Neon Serverless PostgreSQL 16<br/><i>Users • CloudAssets • HealthLogs • Invoices</i>")]
+        POSTGRES_DB[("🗄️ <b>Neon Serverless PostgreSQL 16</b><br/><i>Users • CloudAssets • AssetHealthLogs • PaymentRecords</i><br/><i>Auto-scaling with SSL/TLS Encryption</i>")]
     end
 
-    subgraph TARGET_TIER ["🌐 Monitored Infrastructure"]
-        NODE_TARGETS["🎯 External APIs, Microservices & Databases<br/><i>Out-of-band HTTP/S Health Sweeps</i>"]
+    subgraph TARGET_TIER ["🎯 Monitored Cloud Infrastructure"]
+        NODE_TARGETS["🌐 <b>External APIs, Microservices & Databases</b><br/><i>Out-of-band HTTP/HTTPS Latency & Uptime Probing</i>"]
     end
 
-    HTTP_CLIENT -->|REST API Calls /api/v1| CONTROLLERS
-    ORM <-->|Encrypted Npgsql TLS Driver| POSTGRES_DB
-    BG_SVC -->|Async GET (5s CTS Timeout)| NODE_TARGETS
+    HTTP_CLIENT -->|"HTTPS REST Calls /api/v1 (JWT Bearer)"| CONTROLLERS
+    ORM <-->|"Encrypted Npgsql TLS Driver"| POSTGRES_DB
+    BG_SVC -->|"Async HTTP GET (5s CTS Timeout)"| NODE_TARGETS
 
     classDef frontStyle fill:#0f172a,stroke:#38bdf8,stroke-width:2px,color:#f8fafc;
     classDef backStyle fill:#1e1b4b,stroke:#a855f7,stroke-width:2px,color:#f8fafc;
     classDef dataStyle fill:#064e3b,stroke:#34d399,stroke-width:2px,color:#f8fafc;
     classDef extStyle fill:#4c0519,stroke:#fb7185,stroke-width:2px,color:#f8fafc;
 
-    class VIEWS,STORES,HTTP_CLIENT,CHECKOUT_SYS frontStyle;
+    class VIEWS,STORES,CHECKOUT_SYS,HTTP_CLIENT frontStyle;
     class CONTROLLERS,SVC_LAYER,BG_SVC,ORM backStyle;
     class POSTGRES_DB dataStyle;
     class NODE_TARGETS extStyle;
