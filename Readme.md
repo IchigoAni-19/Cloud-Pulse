@@ -5,6 +5,7 @@
 ### **Production-Grade Cloud Asset Tracking, Health Monitoring & SaaS Telemetry Platform**
 
 [![Live Demo](https://img.shields.io/badge/🌐_Live_Demo-Online_%26_Healthy-00C853?style=for-the-badge&logo=azure&logoColor=white)](https://cloudpulse-window-huc9hafmf5dpd6aw.indiasouthcentral-01.azurewebsites.net)
+[![CI/CD](https://img.shields.io/badge/CI%2FCD-GitHub_Actions-2088FF?style=for-the-badge&logo=githubactions&logoColor=white)](https://github.com)
 [![Docker Hub](https://img.shields.io/badge/Docker_Hub-patelharsh19%2Fcloudpulse-2496ED?style=for-the-badge&logo=docker&logoColor=white)](https://hub.docker.com/r/patelharsh19/cloudpulse)
 [![Neon Database](https://img.shields.io/badge/Neon-Serverless_Postgres-00E599?style=for-the-badge&logo=postgresql&logoColor=black)](https://neon.tech)
 <br/>
@@ -17,6 +18,7 @@
 
 <p align="center">
   <a href="#-live-deployment--cloud-architecture">Live Deployment</a> •
+  <a href="#-automation--cicd-pipeline">CI/CD Pipeline</a> •
   <a href="#-key-features">Key Features</a> •
   <a href="#-system-architecture">System Architecture</a> •
   <a href="#-tech-stack">Tech Stack</a> •
@@ -25,7 +27,7 @@
   <a href="#-enterprise-billing--checkout">Billing & Checkout</a> •
   <a href="#-api-reference">API Reference</a> •
   <a href="#-database-schema">Database Schema</a> •
-  <a href="#-security--best-practices">Security</a> •
+  <a href="#-security--production-hardening">Security</a> •
   <a href="#-license">License</a>
 </p>
 
@@ -106,6 +108,63 @@ graph TD
 | **☁️ Azure Cloud Provisioning** | Deployed on **Azure Web App for Containers** (Linux, Basic B1 tier) hosted in the `indiasouthcentral` region, configured for port `8080` with zero-downtime container replacement. |
 | **🔐 Zero-Trust Secret Management** | Sensitive configuration (Neon ADO.NET connection strings, JWT HMAC-SHA256 signing keys, Google OAuth Client IDs) injected at runtime through **Azure App Settings**, guaranteeing zero plaintext credentials in source control. |
 | **🛡️ Strict CORS Lockdown** | Hardened CORS policy using `AddDefaultPolicy` with an explicit VIP origin whitelist permitting only the live Azure production domain and authenticated local development ports (`5173`, `8080`). |
+
+---
+
+## ⚡ Automation & CI/CD Pipeline
+
+CloudPulse implements a **zero-touch Continuous Integration & Continuous Deployment (CI/CD)** pipeline engineered with **GitHub Actions**, eliminating manual terminal commands, local builds, or interactive cloud deployments. Every push to the `main` branch autonomously triggers a secure end-to-end build, image publication, and cloud rollout sequence in the background.
+
+### 🔄 Zero-Touch Deployment Flow
+
+```mermaid
+flowchart LR
+    subgraph VCS ["🐙 Version Control"]
+        GIT_PUSH["<b>Git Push</b><br/><code>refs/heads/main</code>"]
+    end
+
+    subgraph GHA ["⚙️ GitHub Actions Runner (ubuntu-latest)"]
+        TRIGGER["<b>Workflow Trigger</b><br/><i>.github/workflows/deploy.yml</i>"]
+        CHECKOUT["📥 <b>actions/checkout@v4</b><br/><i>Fetch Repository</i>"]
+        DOCKER_LOGIN["🔐 <b>docker/login-action@v3</b><br/><i>Auth via Repository Secrets</i>"]
+        DOCKER_BUILD["🐳 <b>docker/build-push-action@v5</b><br/><i>Multi-Stage Full-Stack Build</i>"]
+        AZURE_DEPLOY["🚀 <b>azure/webapps-deploy@v3</b><br/><i>Deploy to Azure Web App</i>"]
+    end
+
+    subgraph REGISTRY ["📦 Container Registry"]
+        DOCKER_HUB[("🐳 <b>Docker Hub</b><br/><code>patelharsh19/cloudpulse:latest</code>")]
+    end
+
+    subgraph AZURE_CLOUD ["☁️ Microsoft Azure"]
+        AZURE_APP["🌐 <b>Azure Web App for Containers</b><br/><code>cloudpulse-window</code><br/><i>Zero-Downtime Pull & Restart</i>"]
+    end
+
+    GIT_PUSH --> TRIGGER
+    TRIGGER --> CHECKOUT
+    CHECKOUT --> DOCKER_LOGIN
+    DOCKER_LOGIN --> DOCKER_BUILD
+    DOCKER_BUILD -->|Push Image| DOCKER_HUB
+    DOCKER_BUILD --> AZURE_DEPLOY
+    AZURE_DEPLOY -->|Publish Profile Auth| AZURE_APP
+    AZURE_APP -.->|Pull Latest Image| DOCKER_HUB
+
+    classDef vcsStyle fill:#1e293b,stroke:#f97316,stroke-width:2px,color:#f8fafc;
+    classDef runnerStyle fill:#0f172a,stroke:#38bdf8,stroke-width:2px,color:#f8fafc;
+    classDef regStyle fill:#1e1b4b,stroke:#a855f7,stroke-width:2px,color:#f8fafc;
+    classDef azureStyle fill:#064e3b,stroke:#10b981,stroke-width:2px,color:#f8fafc;
+
+    class GIT_PUSH vcsStyle;
+    class TRIGGER,CHECKOUT,DOCKER_LOGIN,DOCKER_BUILD,AZURE_DEPLOY runnerStyle;
+    class DOCKER_HUB regStyle;
+    class AZURE_APP azureStyle;
+```
+
+### 🛠️ Pipeline Architecture & Key Highlights
+
+- **⚡ GitHub Actions Integration:** Continuous Delivery is orchestrated via `.github/workflows/deploy.yml`, triggered automatically on every `git push` event targeting the **`main`** branch without requiring manual release intervention.
+- **🐳 Automated Docker Workflow:** The pipeline spins up an ephemeral **`ubuntu-latest`** runner, securely logs into Docker Hub using encrypted repository secrets, compiles the unified multi-stage container (Node 22 frontend + .NET 8 backend), and pushes the monolithic production image to **`patelharsh19/cloudpulse:latest`** via `docker/build-push-action@v5`.
+- **☁️ Azure Continuous Deployment:** Utilizes the official **`azure/webapps-deploy@v3`** action, authenticating via a securely stored **Azure Publish Profile**, to seamlessly instruct the live server (`cloudpulse-window`) to pull the freshly published container from Docker Hub and execute a zero-downtime restart.
+- **🔐 Security & Secrets Management:** Enforces a zero-trust posture where **zero credentials (tokens, profiles, or passwords) are hardcoded**, relying entirely on encrypted **GitHub Actions Secrets** (`DOCKERHUB_USERNAME`, `DOCKERHUB_TOKEN`, and `AZURE_PUBLISH_PROFILE`) to maintain an airtight deployment lifecycle.
 
 ---
 
@@ -198,9 +257,10 @@ graph TD
 | Component | Technology | Description |
 | :--- | :--- | :--- |
 | **Cloud Host** | Microsoft Azure App Service | Linux Basic B1 container app in India South Central |
+| **CI/CD Pipeline** | GitHub Actions (`deploy.yml`) | Zero-touch build, test, Docker Hub push, and Azure rollout on `main` push |
 | **Container Engine** | Docker & Docker Hub | Multi-stage image build (`patelharsh19/cloudpulse:latest`) |
 | **Cloud Database** | Neon Serverless PostgreSQL | Auto-scaling managed Postgres instance with SSL/TLS |
-| **Config & Secrets** | Azure App Settings | Environment variables for connection strings and JWT secrets |
+| **Config & Secrets** | Azure App Settings & GH Secrets | Encrypted runtime environment variables & repository deployment secrets |
 
 ### **Backend (`CloudPulse.Api`)**
 | Component | Technology | Description |
@@ -455,6 +515,9 @@ PaymentRecords
 
 ```
 Cloud-Pulse/
+├── .github/
+│   └── workflows/
+│       └── deploy.yml             # GitHub Actions CI/CD automated deployment workflow
 ├── CloudPulse.Api/                 # ASP.NET Core 8 Web API
 │   ├── Controllers/               # REST Controllers (Auth, Asset, Metrics, Payment)
 │   ├── Data/                      # AppDbContext, DbSeeder, Fluent API configurations
@@ -494,7 +557,7 @@ Cloud-Pulse/
 ## 🔒 Security & Production Hardening
 
 - **🔒 Strict VIP CORS Lockdown**: The backend API completely locks down cross-origin resource sharing to the live Azure production domain (`https://cloudpulse-window-huc9hafmf5dpd6aw.indiasouthcentral-01.azurewebsites.net`) and local development endpoints (`http://localhost:5173`, `http://localhost:8080`).
-- **🛡️ Managed Cloud Secrets**: Zero plain-text secrets in the repository; production database connection strings and JWT signing tokens are managed through Azure App Service App Settings.
+- **🛡️ Managed Cloud Secrets & GH Secrets**: Zero plain-text credentials in the repository; deployment credentials (`DOCKERHUB_TOKEN`, `AZURE_PUBLISH_PROFILE`) are stored in encrypted GitHub Actions Secrets, while database connection strings and JWT signing tokens are managed through Azure App Settings.
 - **🔑 Zero-Plaintext Passwords**: Salted password hashing with BCrypt (`BCrypt.Net.BCrypt.HashPassword`).
 - **🎫 Cryptographic JWT Tokens**: Signed with HMAC-SHA256, strictly validated for expiration, audience, and issuer with zero clock skew.
 - **⚡ Timing-Attack Mitigation**: Constant-time byte array comparison (`FixedTimeEquals`) used during payment signature verification.
