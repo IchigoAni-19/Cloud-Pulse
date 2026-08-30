@@ -19,17 +19,15 @@ builder.Services.Configure<GoogleAuthSettings>(
 
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AllowFrontend", policy =>
+    options.AddDefaultPolicy(policy =>
     {
-        policy.SetIsOriginAllowed(origin =>
-        {
-            if (string.IsNullOrEmpty(origin)) return false;
-            var uri = new Uri(origin);
-            return uri.Host == "localhost" || uri.Host == "127.0.0.1";
-        })
+        policy.WithOrigins(
+            "https://cloudpulse-window-huc9hafmf5dpd6aw.indiasouthcentral-01.azurewebsites.net", // Your live production frontend
+            "http://localhost:5173",                      // Your local Vue development server
+            "http://localhost:8080"                       // Your local Docker container
+        )
         .AllowAnyHeader()
-        .AllowAnyMethod()
-        .AllowCredentials();
+        .AllowAnyMethod();
     });
 });
 
@@ -162,7 +160,7 @@ if (app.Environment.IsDevelopment())
     });
 }
 
-app.UseCors("AllowFrontend");
+app.UseCors();
 
 app.UseAuthentication();
 app.UseAuthorization();
